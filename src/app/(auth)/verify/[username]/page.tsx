@@ -48,7 +48,7 @@ const VerifyAccount = () => {
       });
 
       toast.success(response.data.message);
-      router.replace("/auth/sign-in");
+      router.replace("/sign-in");
     } catch (error) {
       console.error("Error in verifying code", error);
       const axiosError = error as AxiosError<ApiResponse>;
