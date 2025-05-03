@@ -1,0 +1,17 @@
+[
+  {
+    "title": "Message from Alex",
+    "content": "I saw something strange near the old warehouse.",
+    "received": "10 minutes ago"
+  },
+  {
+    "title": "Message from Sarah",
+    "content": "Don't forget what we talked about last night.",
+    "received": "2 hours ago"
+  },
+  {
+    "title": "Message from Jamal",
+    "content": "If you’re reading this, it might already be too late.",
+    "received": "1 day ago"
+  }
+]

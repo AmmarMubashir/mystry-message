@@ -4,8 +4,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import type * as z from "zod";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useDebounceCallback } from "usehooks-ts";
 import { useRouter } from "next/navigation";
+import { signUpSchema } from "@/Schema/signUpSchema";
+import axios, { type AxiosError } from "axios";
+import type { ApiResponse } from "../../../../types/ApiResponse";
 import { toast } from "sonner";
 import {
   Form,
@@ -17,9 +21,16 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Eye, EyeOff, Loader2, Lock, User } from "lucide-react";
-import { signInSchema } from "@/Schema/signInSchema";
-import { signIn } from "next-auth/react";
+import {
+  CheckCircle2,
+  Loader2,
+  Mail,
+  User,
+  Lock,
+  ArrowRight,
+  EyeOff,
+  Eye,
+} from "lucide-react";
 import {
   Card,
   CardContent,
@@ -30,45 +41,68 @@ import {
 } from "@/components/ui/card";
 
 const Page = () => {
+  const [username, setUsername] = useState("");
+  const [usernameMessage, setUsernameMessage] = useState("");
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  const debounced = useDebounceCallback(setUsername, 300);
   const router = useRouter();
 
   // zod implementation
-  const form = useForm<z.infer<typeof signInSchema>>({
-    resolver: zodResolver(signInSchema),
+  const form = useForm<z.infer<typeof signUpSchema>>({
+    resolver: zodResolver(signUpSchema),
     defaultValues: {
-      identifier: "",
+      username: "",
+      email: "",
       password: "",
     },
   });
 
-  const onSubmit = async (data: z.infer<typeof signInSchema>) => {
-    setIsSubmitting(true);
-    const result = await signIn("credentials", {
-      redirect: false,
-      identifier: data.identifier,
-      password: data.password,
-    });
-
-    if (result?.error) {
-      setIsSubmitting(false);
-      if (result.error === "Invalid credentials") {
-        toast.error("Invalid email or password");
-      } else {
-        toast.error(result.error);
-      }
-    }
-
-    if (result?.url) {
-      setIsSubmitting(false);
-      toast.success("Login successful!");
-      router.replace("/dashboard");
-    }
-  };
-
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
+  };
+
+  useEffect(() => {
+    const checkUsernameUniqueness = async () => {
+      if (username) {
+        setIsCheckingUsername(true);
+        setUsernameMessage("");
+        try {
+          const response = await axios.get(
+            `/api/check-username-unique?username=${username}`
+          );
+          setUsernameMessage(response.data.message);
+        } catch (error) {
+          const axiosError = error as AxiosError<ApiResponse>;
+          setUsernameMessage(
+            axiosError.response?.data.message ?? "Error checking username"
+          );
+        } finally {
+          setIsCheckingUsername(false);
+        }
+      }
+    };
+
+    checkUsernameUniqueness();
+  }, [username]);
+
+  const onSubmit = async (data: z.infer<typeof signUpSchema>) => {
+    setIsSubmitting(true);
+    try {
+      const response = await axios.post<ApiResponse>("/api/sign-up", data);
+      toast.success(response.data.message);
+      router.replace(`/verify/${username}`);
+    } catch (error) {
+      console.error("Error in signup of user", error);
+      const axiosError = error as AxiosError<ApiResponse>;
+      const errorMessage =
+        axiosError.response?.data.message ?? "Error signing up";
+      toast.error(errorMessage);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -77,10 +111,10 @@ const Page = () => {
         <Card className="border-t-4 border-t-emerald-500 shadow-lg overflow-hidden">
           <CardHeader className="space-y-1 text-center pb-6">
             <CardTitle className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
-              Welcome Back
+              Join Mystery Message
             </CardTitle>
             <CardDescription className="text-gray-500">
-              Sign in to your Mystery Message account
+              Sign up to start your anonymous adventure
             </CardDescription>
           </CardHeader>
 
@@ -91,20 +125,75 @@ const Page = () => {
                 className="space-y-5"
               >
                 <FormField
-                  name="identifier"
+                  name="username"
                   control={form.control}
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-gray-700 font-medium">
-                        Email or Username
+                        Username
+                      </FormLabel>
+                      <div className="relative">
+                        <FormControl>
+                          <div className="relative">
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                              <User className="h-4 w-4" />
+                            </div>
+                            <Input
+                              placeholder="Choose a unique username"
+                              className="pl-10 bg-gray-50 border-gray-200 focus:border-emerald-300 focus:ring focus:ring-emerald-200 focus:ring-opacity-50 transition-all"
+                              {...field}
+                              onChange={(e) => {
+                                field.onChange(e);
+                                debounced(e.target.value);
+                              }}
+                            />
+                          </div>
+                        </FormControl>
+                        {isCheckingUsername && (
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <Loader2 className="h-4 w-4 animate-spin text-emerald-500" />
+                          </div>
+                        )}
+                        {!isCheckingUsername &&
+                          usernameMessage === "Username is unique" && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                            </div>
+                          )}
+                      </div>
+                      <div className="min-h-[20px]">
+                        {usernameMessage && !isCheckingUsername && (
+                          <p
+                            className={`text-xs mt-1 ${
+                              usernameMessage === "Username is unique"
+                                ? "text-emerald-500"
+                                : "text-red-500"
+                            }`}
+                          >
+                            {usernameMessage}
+                          </p>
+                        )}
+                        <FormMessage />
+                      </div>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  name="email"
+                  control={form.control}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-gray-700 font-medium">
+                        Email
                       </FormLabel>
                       <div className="relative">
                         <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                          <User className="h-4 w-4" />
+                          <Mail className="h-4 w-4" />
                         </div>
                         <FormControl>
                           <Input
-                            placeholder="Enter your email or username"
+                            placeholder="Enter your email address"
                             className="pl-10 bg-gray-50 border-gray-200 focus:border-emerald-300 focus:ring focus:ring-emerald-200 focus:ring-opacity-50 transition-all"
                             {...field}
                           />
@@ -171,11 +260,11 @@ const Page = () => {
                   {isSubmitting ? (
                     <div className="flex items-center justify-center">
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      <span>Signing in...</span>
+                      <span>Creating account...</span>
                     </div>
                   ) : (
                     <div className="flex items-center justify-center">
-                      <span>Sign In</span>
+                      <span>Sign Up</span>
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </div>
                   )}
@@ -186,12 +275,12 @@ const Page = () => {
 
           <CardFooter className="flex justify-center border-t border-gray-100 pt-4 pb-6">
             <div className="text-center flex items-center gap-1 text-sm">
-              <span className="text-gray-600">Don&apos;t have an account?</span>
+              <span className="text-gray-600">Already have an account?</span>
               <Link
-                href="/sign-up"
+                href="/sign-in"
                 className="font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
               >
-                Sign Up
+                Sign In
               </Link>
             </div>
           </CardFooter>
