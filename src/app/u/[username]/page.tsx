@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import axios, { type AxiosError } from "axios";
 import { toast } from "sonner";
 import {
@@ -34,6 +34,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ApiResponse } from "../../../../types/ApiResponse";
 
 // Define the message schema with Zod
 const messageSchema = z.object({
@@ -45,22 +46,11 @@ const messageSchema = z.object({
 
 type MessageFormValues = z.infer<typeof messageSchema>;
 
-interface ApiResponse {
-  success: boolean;
-  message: string;
-}
-
-interface PageProps {
-  params: {
-    username: string;
-  };
-}
-
-const Page = ({ params }: PageProps) => {
-  const { username } = params;
+const Page = () => {
+  const router = useRouter();
+  const { username } = useParams<{ username: string }>();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [messageSuccess, setMessageSuccess] = useState(false);
-  const router = useRouter();
 
   // Initialize the form with Zod validation
   const form = useForm<MessageFormValues>({
