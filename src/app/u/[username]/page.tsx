@@ -24,6 +24,7 @@ import {
   MessageSquare,
   ArrowRight,
   Info,
+  Lightbulb,
 } from "lucide-react";
 import {
   Card,
@@ -34,7 +35,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ApiResponse } from "../../../../types/ApiResponse";
+import type { ApiResponse } from "../../../../types/ApiResponse";
 
 // Define the message schema with Zod
 const messageSchema = z.object({
@@ -51,6 +52,8 @@ const Page = () => {
   const { username } = useParams<{ username: string }>();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [messageSuccess, setMessageSuccess] = useState(false);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
 
   // Initialize the form with Zod validation
   const form = useForm<MessageFormValues>({
@@ -88,6 +91,27 @@ const Page = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Fetch message suggestions from API
+  const fetchSuggestions = async () => {
+    setIsLoadingSuggestions(true);
+    try {
+      const response = await axios.post<{ suggestions: string[] }>(
+        "/api/suggest-messages"
+      );
+      setSuggestions(response.data.suggestions);
+    } catch (error) {
+      console.error("Error fetching suggestions:", error);
+      toast.error("Failed to load message suggestions");
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  };
+
+  // Apply a suggestion to the form
+  const applySuggestion = (suggestion: string) => {
+    form.setValue("content", suggestion);
   };
 
   return (
@@ -146,6 +170,44 @@ const Page = () => {
                         <div className="text-xs text-gray-500">
                           {field.value.length}/300 characters
                         </div>
+                      </div>
+
+                      {/* Add the suggestion button here */}
+                      <div className="mt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 flex items-center gap-1.5"
+                          onClick={fetchSuggestions}
+                          disabled={isLoadingSuggestions}
+                        >
+                          {isLoadingSuggestions ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Lightbulb className="h-3.5 w-3.5" />
+                          )}
+                          <span>Get message ideas</span>
+                        </Button>
+
+                        {suggestions.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            <p className="text-xs font-medium text-gray-500">
+                              Suggested messages:
+                            </p>
+                            <div className="grid gap-2">
+                              {suggestions.map((suggestion, index) => (
+                                <div
+                                  key={index}
+                                  className="p-2 bg-gray-50 border border-gray-100 rounded-md text-sm cursor-pointer hover:bg-emerald-50 hover:border-emerald-100 transition-colors"
+                                  onClick={() => applySuggestion(suggestion)}
+                                >
+                                  {suggestion}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </FormItem>
                   )}
